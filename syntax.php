@@ -38,6 +38,7 @@ class syntax_plugin_addnewpage extends DokuWiki_Syntax_Plugin {
      */
     public function connectTo($mode) {
         $this->Lexer->addSpecialPattern('\{\{NEWPAGE[^\}]*\}\}', $mode, 'plugin_addnewpage');
+        $this->Lexer->addSpecialPattern('\{\{NEWNS[^\}]*\}\}', $mode, 'plugin_addnewpage');
     }
 
     /**
@@ -59,7 +60,14 @@ class syntax_plugin_addnewpage extends DokuWiki_Syntax_Plugin {
      */
     public function handle($match, $state, $pos, Doku_Handler $handler) {
         /* @codingStandardsIgnoreEnd */
-        $options = substr($match, 9, -2); // strip markup
+        if (substr($match, 2, 5) === 'NEWNS') {
+            $createNamespace = true;
+            $optionsStart = 7;
+        } else {
+            $createNamespace = false;
+            $optionsStart = 9;
+        }
+        $options = substr($match, $optionsStart, -2); // strip markup
         $options = explode('#', $options, 2);
 
         $namespace = trim(ltrim($options[0], '>'));
@@ -67,7 +75,8 @@ class syntax_plugin_addnewpage extends DokuWiki_Syntax_Plugin {
         $templates = array_map('trim', $templates);
         return array(
             'namespace' => $namespace,
-            'newpagetemplates' => $templates
+            'newpagetemplates' => $templates,
+            'createNamespace' => $createNamespace,
         );
     }
 
@@ -103,11 +112,10 @@ class syntax_plugin_addnewpage extends DokuWiki_Syntax_Plugin {
                 . '<input class="edit" type="text" name="title" size="20" maxlength="255" tabindex="2" />'
                 . $newpagetemplateinput
                 . '<input type="hidden" name="do" value="edit" />'
-                . '<input type="hidden" name="id" />'
+                . '<input type="hidden" name="id" data-forcens="'.$data['createNamespace'].'" />'
                 . '<input class="button" type="submit" value="' . $this->getLang('okbutton') . '" tabindex="4" />'
                 . '</form>'
                 . '</p></div>';
-
             $renderer->doc .= $form;
 
             return true;
@@ -149,14 +157,15 @@ class syntax_plugin_addnewpage extends DokuWiki_Syntax_Plugin {
         // Whether to hide the NS selection (otherwise, show only subnamespaces).
         $hide = $this->getConf('addpage_hide');
 
+        $parsed_dest_ns = $this->_parseNS($dest_ns);
         // Whether the user can create pages in the provided NS (or root, if no
         // destination NS has been set.
-        $can_create = (auth_quickaclcheck($dest_ns . ":") >= AUTH_CREATE);
+        $can_create = (auth_quickaclcheck($parsed_dest_ns . ":") >= AUTH_CREATE);
 
         //namespace given, but hidden
         if($hide && !empty($dest_ns)) {
             if($can_create) {
-                return '<input type="hidden" name="np_cat" id="np_cat" value="' . $this->_parseNS($dest_ns) . '"/>';
+                return '<input type="hidden" name="np_cat" id="np_cat" value="' . $parsed_dest_ns . '"/>';
             } else {
                 return false;
             }
@@ -249,7 +258,7 @@ class syntax_plugin_addnewpage extends DokuWiki_Syntax_Plugin {
         $namespaces = array();
         foreach($searchdata as $ns) {
             foreach($excludes as $exclude) {
-                if(strpos($ns['id'], $exclude) === 0) {
+                if( ! empty($exclude) && strpos($ns['id'], $exclude) === 0) {
                     continue 2;
                 }
             }
