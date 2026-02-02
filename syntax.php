@@ -229,8 +229,8 @@ class syntax_plugin_addnewpage extends SyntaxPlugin
     {
         global $INFO;
 
-        $selfid = $INFO['id'];
-        $selfns = getNS($selfid);
+        $selfid = $INFO['id'] ?? '';
+        $selfns = $selfid ? getNS($selfid) : '';
         // replace the input variable with something unique that survives cleanID
         $keep = sha1(time());
 
